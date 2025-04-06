@@ -24,10 +24,43 @@ def load_data(data_dir):
                 labels.append(idx)
 
     labels = torch.tensor(labels)
-    data = torch.tensor(np.array(data))
+    data = torch.tensor(np.array(data), dtype=torch.float)
     return data, labels, classes
 
 
 image = load_and_preprocess('data/training/caries/wc3.jpg')
 data, lables, classes = load_data('data/training')
-print(data.shape)
+
+class Linear:
+    def __init__(self, x, y, bias=True):
+        self.w = torch.randn((x, y))
+        if bias:
+            self.b = torch.zeros(y)
+
+    def __call__(self, x):
+        out = x @ self.w + self.b
+        return out
+
+class Identification:
+    def __init__(self):
+        self.layer1 = Linear(128*128*3, 200)
+        self.layer2 = Linear(200, 200)
+        self.layer3 = Linear(200, 2)
+
+    def __call__(self, x):
+        x = self.layer1(x)
+        x = self.layer2(x)
+        logits = self.layer3(x)
+
+        counts = logits.exp()
+        print(counts)
+        probs = counts/ counts.sum(1, keepdim=True)
+
+        print(probs)
+        print(lables.shape)
+
+model = Identification()
+
+data = data.view(60, 128*128*3)
+
+model(data)
