@@ -1,4 +1,6 @@
 import torch
+import torch.nn.functional as F
+# import torch.nn as nn
 from PIL import Image
 import numpy as np
 import os
@@ -52,15 +54,17 @@ class Identification:
         x = self.layer2(x)
         logits = self.layer3(x)
 
+        logits = logits - logits.max(dim=1, keepdim=True).values
         counts = logits.exp()
-        print(counts)
-        probs = counts/ counts.sum(1, keepdim=True)
-
+        probs = F.softmax(logits, dim=1)
         print(probs)
-        print(lables.shape)
+
+        loss = -probs[range(0, probs.shape[0]), lables].log().mean()
+        # loss = F.cross_entropy(logits, lables)
+        print(loss)
 
 model = Identification()
 
 data = data.view(60, 128*128*3)
-
+print(lables)
 model(data)
