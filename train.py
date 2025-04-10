@@ -35,36 +35,78 @@ data, lables, classes = load_data('data/training')
 
 class Linear:
     def __init__(self, x, y, bias=True):
+        self.bias = bias
         self.w = torch.randn((x, y))
-        if bias:
+        if self.bias:
             self.b = torch.zeros(y)
 
     def __call__(self, x):
-        out = x @ self.w + self.b
+        out = x @ self.w + self.b if self.bias else x @ self.w
         return out
+
+    def parameters(self):
+        if self.bias:
+            return [self.w] + [self.b]
+        else:
+            return [self.w]
 
 class Identification:
     def __init__(self):
         self.layer1 = Linear(128*128*3, 200)
         self.layer2 = Linear(200, 200)
-        self.layer3 = Linear(200, 2)
+        self.layer3 = Linear(200, 2, bias=False)
 
     def __call__(self, x):
+        for p in self.parameters():
+            p.requires_grad = True
         x = self.layer1(x)
+        x = x.sigmoid()
         x = self.layer2(x)
+        x = x.sigmoid()
         logits = self.layer3(x)
 
         logits = logits - logits.max(dim=1, keepdim=True).values
         counts = logits.exp()
-        probs = F.softmax(logits, dim=1)
-        print(probs)
+        # probs = F.softmax(logits, dim=1)
+        probs = counts / counts.sum(dim=1, keepdim=True)
 
         loss = -probs[range(0, probs.shape[0]), lables].log().mean()
         # loss = F.cross_entropy(logits, lables)
-        print(loss)
+        return loss
+
+    def parameters(self):
+        return self.layer1.parameters() + self.layer2.parameters() + self.layer3.parameters()
 
 model = Identification()
 
 data = data.view(60, 128*128*3)
-print(lables)
-model(data)
+
+max_iter = 500
+lr = 0.1
+for _ in range(max_iter):
+    loss = model(data)
+    print(loss)
+
+    for p in model.parameters():
+        p.grad = None
+    loss.backward()
+
+    for p in model.parameters():
+        p.data -= lr * p.grad
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
