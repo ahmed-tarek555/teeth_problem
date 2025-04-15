@@ -9,7 +9,7 @@ import os
 def load_and_preprocess(image_path):
     image = Image.open(image_path).convert('RGB')
     image = image.resize((128, 128))
-    image = torch.tensor(np.array(image)/255.0)
+    image = torch.tensor(np.array(image)/255.0, dtype=torch.float)
     return image
 
 def load_data(data_dir):
@@ -72,7 +72,7 @@ class Identification:
 
         loss = -probs[range(0, probs.shape[0]), lables].log().mean()
         # loss = F.cross_entropy(logits, lables)
-        return loss
+        return loss, probs
 
     def parameters(self):
         return self.layer1.parameters() + self.layer2.parameters() + self.layer3.parameters()
@@ -84,7 +84,7 @@ data = data.view(60, 128*128*3)
 max_iter = 500
 lr = 0.1
 for _ in range(max_iter):
-    loss = model(data)
+    loss, probs = model(data)
     print(loss)
 
     for p in model.parameters():
@@ -95,6 +95,16 @@ for _ in range(max_iter):
         p.data -= lr * p.grad
 
 
+test = load_and_preprocess('data/test/caries/wc45.jpg')
+test = torch.stack((test,), 0)
+A, B, C, D = test.shape
+test = test.view(A, B*C*D)
+print(test.shape)
+loss, probs = model(test)
+
+idx = torch.multinomial(probs, 1)
+
+print(classes[idx])
 
 
 
