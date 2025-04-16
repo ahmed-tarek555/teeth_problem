@@ -74,6 +74,16 @@ class Identification:
         # loss = F.cross_entropy(logits, lables)
         return loss, probs
 
+    def identify(self, picture):
+        picture = load_and_preprocess(picture)
+        picture = torch.stack((picture,), dim=0)
+        A, B, C, D = picture.shape
+        picture = picture.view(A, B*C*D)
+        loss, probs = self(picture)
+        idx = torch.multinomial(probs, 1)
+        result = classes[idx]
+        return result
+
     def parameters(self):
         return self.layer1.parameters() + self.layer2.parameters() + self.layer3.parameters()
 
@@ -95,18 +105,9 @@ for _ in range(max_iter):
         p.data -= lr * p.grad
 
 
-test = load_and_preprocess('data/test/caries/wc45.jpg')
-test = torch.stack((test,), 0)
-A, B, C, D = test.shape
-test = test.view(A, B*C*D)
-print(test.shape)
-loss, probs = model(test)
+test = 'data/test/caries/wc45.jpg'
 
-idx = torch.multinomial(probs, 1)
-
-print(classes[idx])
-
-
+print(model.identify(test))
 
 
 
