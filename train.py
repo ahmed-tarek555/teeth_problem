@@ -52,49 +52,56 @@ class Linear:
 
 class Identification:
     def __init__(self):
-        self.layer1 = Linear(128*128*3, 200)
-        self.layer2 = Linear(200, 200)
-        self.layer3 = Linear(200, 2, bias=False)
+        self.layers = [
+            Linear(128*128*3, 200),
+            Linear(200, 200),
+            Linear(200, 2, bias=False)
+        ]
 
-    def __call__(self, x):
+    def __call__(self, x, targets=False):
         for p in self.parameters():
             p.requires_grad = True
-        x = self.layer1(x)
-        x = x.sigmoid()
-        x = self.layer2(x)
-        x = x.sigmoid()
-        logits = self.layer3(x)
+
+        for layer in self.layers:
+            x = layer(torch.sigmoid(x))
+        logits = x
 
         logits = logits - logits.max(dim=1, keepdim=True).values
         counts = logits.exp()
         # probs = F.softmax(logits, dim=1)
         probs = counts / counts.sum(dim=1, keepdim=True)
 
-        loss = -probs[range(0, probs.shape[0]), lables].log().mean()
-        # loss = F.cross_entropy(logits, lables)
-        return loss, probs
+        if targets is not False:
+            loss = -probs[range(0, probs.shape[0]), targets].log().mean()
+            # loss = F.cross_entropy(logits, lables)
+            return loss, probs
+        else:
+            return probs
 
     def identify(self, picture):
         picture = load_and_preprocess(picture)
         picture = torch.stack((picture,), dim=0)
         A, B, C, D = picture.shape
         picture = picture.view(A, B*C*D)
-        loss, probs = self(picture)
+        probs = self(picture)
         idx = torch.multinomial(probs, 1)
         result = classes[idx]
         return result
 
     def parameters(self):
-        return self.layer1.parameters() + self.layer2.parameters() + self.layer3.parameters()
+        out = []
+        for layer in self.layers:
+            out = out + layer.parameters()
+        return out
 
 model = Identification()
 
 data = data.view(60, 128*128*3)
 
-max_iter = 500
+max_iter = 1
 lr = 0.1
 for _ in range(max_iter):
-    loss, probs = model(data)
+    loss, probs = model(data, lables)
     print(loss)
 
     for p in model.parameters():
