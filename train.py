@@ -29,9 +29,13 @@ def load_data(data_dir):
     data = torch.tensor(np.array(data), dtype=torch.float)
     return data, labels, classes
 
-
 image = load_and_preprocess('data/training/caries/wc3.jpg')
 data, lables, classes = load_data('data/training')
+
+data = data.view(60, 128*128*3)
+
+batch_size = 10
+n_hidden = 200
 
 class Linear:
     def __init__(self, x, y, bias=True):
@@ -53,9 +57,9 @@ class Linear:
 class Identification:
     def __init__(self):
         self.layers = [
-            Linear(128*128*3, 200),
-            Linear(200, 200),
-            Linear(200, 2, bias=False)
+            Linear(data.shape[1], n_hidden),
+            Linear(n_hidden, n_hidden),
+            Linear(n_hidden, len(classes), bias=False)
         ]
 
     def __call__(self, x, targets=False):
@@ -72,7 +76,7 @@ class Identification:
         probs = counts / counts.sum(dim=1, keepdim=True)
 
         if targets is not False:
-            loss = -probs[range(0, probs.shape[0]), targets].log().mean()
+            loss = -probs[range(0, batch_size), targets].log().mean()
             # loss = F.cross_entropy(logits, lables)
             return loss, probs
         else:
@@ -96,12 +100,13 @@ class Identification:
 
 model = Identification()
 
-data = data.view(60, 128*128*3)
 
-max_iter = 1
+max_iter = 500
 lr = 0.1
 for _ in range(max_iter):
-    loss, probs = model(data, lables)
+    batch = torch.randint(0, data.shape[0], (batch_size,))
+
+    loss, probs = model(data[batch], lables[batch])
     print(loss)
 
     for p in model.parameters():
@@ -110,6 +115,7 @@ for _ in range(max_iter):
 
     for p in model.parameters():
         p.data -= lr * p.grad
+
 
 
 test = 'data/test/caries/wc45.jpg'
