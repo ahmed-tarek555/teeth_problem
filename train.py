@@ -54,11 +54,47 @@ class Linear:
         else:
             return [self.w]
 
+class BatchNorm:
+    def __init__(self, dim, eps=1e-5, momentum=0.1):
+        self.training = True
+        self.eps = eps
+        self.momentum = momentum
+
+        self.gamma = torch.ones(dim)
+        self.beta = torch.zeros(dim)
+
+        self.running_mean = torch.zeros(dim)
+        self.running_var = torch.ones(dim)
+
+    def __call__(self, x):
+        if self.training:
+            x_mean = x.mean(0, keepdim=True)
+            x_var = x.var(0, keepdim=True)
+
+        else:
+            x_mean = self.running_mean
+            x_var = self.running_var
+
+        xhat = (x - x_mean) / torch.sqrt(x_var + self.eps)
+        self.out = self.gamma * xhat + self.beta
+
+        if self.training:
+            with torch.no_grad():
+                self.running_mean = (1 - self.momentum) * self.running_mean + self.momentum * x_mean
+                self.running_var = (1 - self.momentum) * self.running_var + self.momentum * x_var
+
+        return self.out
+
+    def parameters(self):
+        return [self.gamma] + [self.beta]
+
 class Identification:
     def __init__(self):
         self.layers = [
             Linear(data.shape[1], n_hidden),
+            BatchNorm(n_hidden),
             Linear(n_hidden, n_hidden),
+            BatchNorm(n_hidden),
             Linear(n_hidden, len(classes), bias=False)
         ]
 
@@ -76,13 +112,15 @@ class Identification:
         probs = counts / counts.sum(dim=1, keepdim=True)
 
         if targets is not False:
-            loss = -probs[range(0, batch_size), targets].log().mean()
+            loss = -probs[range(0, probs.shape[0]), targets].log().mean()
             # loss = F.cross_entropy(logits, lables)
             return loss, probs
         else:
             return probs
 
     def identify(self, picture):
+        for layer in self.layers:
+            layer.training = False
         picture = load_and_preprocess(picture)
         picture = torch.stack((picture,), dim=0)
         A, B, C, D = picture.shape
