@@ -32,7 +32,7 @@ def load_data(data_dir):
 image = load_and_preprocess('data/training/caries/wc3.jpg')
 data, lables, classes = load_data('data/training')
 
-data = data.view(60, 128*128*3)
+data = data.view(-1, 128*128*3)
 
 batch_size = 10
 n_hidden = 200
@@ -95,6 +95,8 @@ class Identification:
             BatchNorm(n_hidden),
             Linear(n_hidden, n_hidden),
             BatchNorm(n_hidden),
+            Linear(n_hidden, n_hidden),
+            BatchNorm(n_hidden),
             Linear(n_hidden, len(classes), bias=False)
         ]
 
@@ -126,7 +128,7 @@ class Identification:
         A, B, C, D = picture.shape
         picture = picture.view(A, B*C*D)
         probs = self(picture)
-        idx = torch.multinomial(probs, 1)
+        idx = torch.argmax(probs)
         result = classes[idx]
         return result
 
@@ -149,6 +151,7 @@ for _ in range(max_iter):
 
     for p in model.parameters():
         p.grad = None
+
     loss.backward()
 
     for p in model.parameters():
