@@ -5,6 +5,7 @@ from PIL import Image
 import numpy as np
 import os
 
+# CONVOLUTIONAL LAYER FORMULA: [(W−K+2P)/S]+1
 
 def load_and_preprocess(image_path):
     image = Image.open(image_path).convert('RGB')
@@ -32,9 +33,9 @@ def load_data(data_dir):
 image = load_and_preprocess('data/training/caries/wc3.jpg')
 data, lables, classes = load_data('data/training')
 
-data = data.view(-1, 128*128*3)
+data = torch.permute(data, (0, 3, 1, 2)).contiguous()
 
-batch_size = 10
+batch_size = 4
 n_hidden = 200
 
 # class Linear:
@@ -91,10 +92,17 @@ n_hidden = 200
 class Identification(nn.Module):
     def __init__(self):
         super().__init__()
-        self.fc = nn.Sequential(nn.Linear(data.shape[1], n_hidden),
-                           nn.Tanh(),
-                           nn.BatchNorm1d(n_hidden),
-                           nn.Linear(n_hidden, len(classes), bias=False))
+
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=16, kernel_size=3, stride=1)
+        self.conv2 = nn.Conv2d(in_channels=16, out_channels=1, kernel_size=3, stride=1)
+
+
+        self.fc = nn.Sequential(nn.Linear(1*124*124, n_hidden),
+                                nn.Tanh(),
+                                nn.BatchNorm1d(n_hidden),
+                                nn.Linear(n_hidden, len(classes), bias=False))
+
+
         # self.layers = [
         #     Linear(data.shape[1], n_hidden),
         #     BatchNorm(n_hidden),
@@ -112,9 +120,14 @@ class Identification(nn.Module):
         # for layer in self.layers:
         #     x = layer(torch.sigmoid(x))
 
+        # x = torch.permute(x, (0, 3, 1, 2)).contiguous() # Since nn.conv2d need the channel dimension to be the second dimension
+        x = self.conv1(x)
+        x = self.conv2(x)
+        A, B, C, D = x.shape
+        x = x.view(A, -1)
         logits = self.fc(x)
-        logits = logits - logits.max(dim=1, keepdim=True).values
-        counts = logits.exp()
+        # logits = logits - logits.max(dim=1, keepdim=True).values
+        # counts = logits.exp()
         probs = F.softmax(logits, dim=1)
         # probs = counts / counts.sum(dim=1, keepdim=True)
 
@@ -133,7 +146,8 @@ class Identification(nn.Module):
         picture = load_and_preprocess(picture)
         picture = torch.stack((picture,), dim=0)
         A, B, C, D = picture.shape
-        picture = picture.view(A, B*C*D)
+        # picture = picture.view(A, B*C*D)
+        picture = torch.permute(picture, (0, 3, 1, 2)).contiguous()
         probs = self(picture)
         idx = torch.argmax(probs)
         result = classes[idx]
